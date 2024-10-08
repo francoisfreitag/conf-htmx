@@ -1,0 +1,846 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Focus Beamer Presentation
+% LaTeX Template
+% Version 1.0 (8/8/18)
+%
+% This template has been downloaded from:
+% http://www.LaTeXTemplates.com
+%
+% Original author:
+% Pasquale Africa (https://github.com/elauksap/focus-beamertheme) with modifications by
+% Vel (vel@LaTeXTemplates.com)
+%
+% Template license:
+% GNU GPL v3.0 License
+%
+% Important note:
+% The bibliography/references need to be compiled with bibtex.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass{beamer}
+
+\usetheme{focus} % Use the Focus theme supplied with the template
+% Add option [numbering=none] to disable the footer progress bar
+% Add option [numbering=fullbar] to show the footer progress bar as always full with a slide count
+
+% Uncomment to enable the ice-blue theme
+%\definecolor{main}{RGB}{92, 138, 168}
+%\definecolor{background}{RGB}{240, 247, 255}
+
+%------------------------------------------------
+
+\usepackage[french]{babel}
+\usepackage{booktabs} % Required for better table rules
+\usepackage{csquotes}
+\usepackage{emoji}
+\usepackage{hyperref}
+\usepackage{minted}
+\usepackage[T1]{fontenc}
+\usepackage{svg} % to access the named colour LightGray
+\usepackage{xcolor} % to access the named colour LightGray
+\definecolor{LightGray}{gray}{0.9}
+
+\hypersetup{
+    pdfborderstyle={/S/U/W 1}
+}
+
+
+\AtBeginSection[]
+{\begin{frame}
+    \frametitle{Sommaire}
+    \tableofcontents[currentsection]
+\end{frame}
+}
+%----------------------------------------------------------------------------------------
+%	 TITLE SLIDE
+%----------------------------------------------------------------------------------------
+
+\title{Refonte graphique des emplois}
+
+\subtitle{Réusiner sereinement}
+
+\author{\href{mailto:mail@franek.fr}{François FREITAG}}
+
+\titlegraphic{\vspace{25pt} \frame{\includegraphics[scale=0.22]{Images/htmx.png}}}
+
+\institute{Les emplois de l'inclusion \\ GIP Inclusion}
+
+\date{7 octobre 2024}
+
+%------------------------------------------------
+
+\begin{document}
+
+%------------------------------------------------
+
+\begin{frame}
+	\maketitle % Automatically created using the information in the commands above
+\end{frame}
+
+%----------------------------------------------------------------------------------------
+%	 SECTION 1
+%----------------------------------------------------------------------------------------
+
+\section{Variables non définies templates Django} % Section title slide, unnumbered
+
+\subsection*{Introduction}
+
+\begin{frame}{Plongée dans django ?}
+    Mécanisme de vérification des variables au rendu des templates django
+
+    \vspace{1cm}
+
+    \textit{\huge Intéressés ?}
+
+    \vspace{.5cm}
+    \begin{itemize}
+        \item {\large \textbf{Oui} : Restez}
+        \item {\large \textbf{Non} : \emoji{coffee} [30 minutes]}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Gestion des variables non définies}
+
+    Qu'affiche ?
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+        <div>
+          {{ does_not_exist }}
+        </div>
+    \end{minted}
+
+    \pause
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{html}
+        <div>
+
+        </div>
+    \end{minted}
+    \pause
+
+    Pourquoi ?
+\end{frame}
+
+\begin{frame}{\texttt{string\_if\_invalid}}
+    \foreignquote{english}{
+        Generally, if a variable doesn't exist, the template system inserts the
+        value of the engine's \texttt{string\_if\_invalid} configuration
+        option, which is set to '' (the empty \texttt{string)} by default.
+
+        \vspace{0.5cm}
+
+        Filters that are applied to an invalid variable will only be applied if
+        \texttt{string\_if\_invalid} is set to '' (the empty string). If
+        \texttt{string\_if\_invalid} is set to any other value, variable
+        filters will be ignored.
+
+        \vspace{0.5cm}
+
+        This behavior is slightly different for the \texttt{if}, \texttt{for}
+        and \texttt{regroup} template tags. If an invalid variable is provided
+        to one of these template tags, the variable will be interpreted as
+        \texttt{None}. Filters are always applied to invalid variables within
+        these template tags.
+
+        \vspace{0.5cm}
+
+        If \texttt{string\_if\_invalid} contains a '\%s', the format marker
+        will be replaced with the name of the invalid variable.
+    }
+\end{frame}
+
+\begin{frame}{\texttt{pytest-django} \texttt{fail-on-template-vars}}
+    Le harnais \texttt{pytest-django} fournit une option pour faire échouer un
+    test lorsqu'un template utilise une variable non définie:
+
+    \vspace{0.5cm}
+
+    \foreignquote{english}{
+        \texttt{fail-on-template-vars}: fail for invalid variables in templates
+    }
+
+    \vspace{0.5cm}
+
+    Cet utilitaire est imparfait, et a été amélioré par Xavier.
+    \begin{itemize}
+        \item \href{https://github.com/pytest-dev/pytest-django/issues/471}{interfère avec les \texttt{OneToOneField}s}
+        \item \href{https://github.com/pytest-dev/pytest-django/pull/1130}{ignore les filtres \texttt{|default:}}
+    \end{itemize}
+\end{frame}
+
+\subsection*{Rendu des templates django}
+
+\begin{frame}[fragile]
+    \frametitle{Rendu des templates: moteur}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
+class Engine:  # django.template.engine
+    def from_string(self, template_code):
+        return Template(template_code, engine=self)
+
+class Template:
+    def __init__(self, template_string, **kwargs):
+        ...
+        self.source = str(template_string)
+        self.nodelist = self.compile_nodelist()
+
+    def compile_nodelist(self):
+        # Slighly simplified:
+        lexer = Lexer(self.source)
+        tokens = lexer.tokenize()
+        parser = Parser(
+            tokens,
+            self.engine.template_libraries,
+            self.engine.template_builtins,
+            self.origin,
+        )
+        return parser.parse()
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Rendu des templates: parser}
+
+    \vspace{-0.3cm}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+class Parser:
+    def __init__(self, tokens, **kwargs):
+        # Reverse the tokens so delete_first_token(), prepend_token(), and
+        # next_token() can operate at the end of the list in constant time.
+        self.tokens = list(reversed(tokens))
+        ...
+
+    def compile_filter(self):
+        return FilterExpression(token, self)
+
+    def parse(self, **kwargs):
+        nodelist = NodeList()
+        while self.tokens:
+            token = self.next_token()
+            # Use the raw values here for TokenType.* for a tiny performance boost.
+            token_type = token.token_type.value
+            if token_type == 0:  # TokenType.TEXT
+                self.extend_nodelist(nodelist, TextNode(token.contents), token)
+            elif token_type == 1:  # TokenType.VAR
+                if not token.contents:
+                    raise self.error(token, "Empty variable tag on line %d" % token.lineno)
+                try:
+                    filter_expression = self.compile_filter(token.contents)
+                except TemplateSyntaxError as e:
+                    raise self.error(token, e)
+                var_node = VariableNode(filter_expression)
+                self.extend_nodelist(nodelist, var_node, token)
+            elif token_type == 2:  # TokenType.BLOCK
+                pass  # We can ignore the rest.
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\texttt{FilterExpression}}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
+class FilterExpression:
+    """Parse a variable token and its optional filters [...]"""
+    # {{ user }}, {{ user | default:None }}
+    def resolve(self, context, ignore_failures=False):
+        ...
+        try:
+            obj = self.var.resolve(context)
+        except VariableDoesNotExist:
+            if ignore_failures:
+                # FirstOfNode, ForNode, IfChangedNode, IfNode, RegroupNode.
+                obj = None
+            else:
+                string_if_invalid = context.template.engine.string_if_invalid
+                if string_if_invalid:
+                    if "%s" in string_if_invalid:
+                        return string_if_invalid % self.var
+                    else:
+                        return string_if_invalid
+                else:
+                    obj = string_if_invalid  # 99.9999... % of templates.
+        ... # Apply template filters sequentially.
+    \end{minted}
+\end{frame}
+
+\subsection*{Présentation fail-on-template-vars}
+
+\begin{frame}[fragile]
+    \frametitle{Fonctionnement \texttt{fail-on-template-vars}}
+
+    La doc de django stipule:
+    \foreignquote{english}{
+        If \texttt{string\_if\_invalid} contains a \texttt{'\%s'}, the format
+        marker will be replaced with the name of the invalid variable.
+    }
+
+    \vspace{1cm}
+
+    \href{https://github.com/pytest-dev/pytest-django/blob/1ffc3239387bcfadbd8aecfdfacf3d6b52b947f8/pytest_django/plugin.py\#L661}{Idée diabolique} :
+    \begin{itemize}
+        \item créer un objet personnalisé injecté en tant que \texttt{string\_if\_invalid}
+        \item surcharger \texttt{\_\_contains\_\_} pour répondre \texttt{True} pour passer :
+\begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
+if "%s" in string_if_invalid:
+\end{minted}
+
+        \item surcharger \texttt{\_\_mod\_\_} pour \texttt{self.fail()} le test :
+\begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
+    return string_if_invalid % self.var
+\end{minted}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Les deux problèmes}
+    \begin{itemize}
+        \item \href{https://github.com/pytest-dev/pytest-django/issues/471}{Les tests échouent si une variable n'existe pas}, même s'il y a un filtre \texttt{|default:}
+\begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+<p>{{ phone|default:"Non renseigné" }}</p>
+\end{minted}
+        \item \href{https://github.com/pytest-dev/pytest-django/pull/1130}{Les \texttt{OneToOneField} dans les blocks \texttt{if} sont toujours évalués \texttt{True}}
+\begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+{% if user.supervisor %}
+    Manager : {{ user.supervisor }}
+{% endif %}
+\end{minted}
+    \end{itemize}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\texttt{fail-on-template-vars}: \texttt{Variable}}
+    \vspace{-0.3cm}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+class Variable:
+    # {% if user.supervisor %}
+    def _resolve_lookup(self, context):
+        """Perform resolution of a real variable (i.e. not a literal) against the given context."""
+        current = context
+        try:  # catch-all for silent variable failures
+            for bit in self.lookups:
+                try:  # dictionary lookup
+                    current = current[bit]
+                except (TypeError, AttributeError, KeyError, ValueError, IndexError):
+                    try:  # attribute lookup
+                        ...
+                        current = getattr(current, bit)
+                    except (TypeError, AttributeError):
+                        ...
+                        try:  # list-index lookup
+                            current = current[int(bit)]
+                        except (IndexError, ValueError, KeyError, TypeError):
+                            raise VariableDoesNotExist(
+                                "Failed lookup for key [%s] in %r", (bit, current)
+                            )
+                # ... handle callables
+        except Exception as e:
+            template_name = getattr(context, "template_name", None) or "unknown"
+            if getattr(e, "silent_variable_failure", False): # ObjectDoesNotExist and subclasses.
+                current = context.template.engine.string_if_invalid  # Truthy when patched!!
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\texttt{FilterExpression}}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
+class FilterExpression:
+    """Parse a variable token and its optional filters [...]"""
+    # {{ user }}, {{ user | default:None }}
+    def resolve(self, context, ignore_failures=False):
+        ...
+        try:
+            obj = self.var.resolve(context)
+        except VariableDoesNotExist:
+            if ignore_failures:
+                # FirstOfNode, ForNode, IfChangedNode, IfNode, RegroupNode.
+                obj = None
+            else:
+                string_if_invalid = context.template.engine.string_if_invalid
+                if string_if_invalid:
+                    if "%s" in string_if_invalid:
+                        return string_if_invalid % self.var
+                    else:
+                        return string_if_invalid
+                else:
+                    obj = string_if_invalid  # 99.9999... % of templates.
+        ...
+    \end{minted}
+\end{frame}
+
+\subsection*{Solution des deux problèm̀es}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/c34a60b8dfd24418cbd22b6ad50101f377c1adb7/tests/conftest.py\#L289-L317}{Patch 1}: \texttt{|default} and \texttt{OneToOneField}}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+@pytest.fixture(autouse=True, scope="session")
+def _fail_for_invalid_template_variable_improved(_fail_for_invalid_template_variable):
+    # Edge cases stuff omitted to fit on the slide.
+    from django.conf import settings as dj_settings
+
+    invalid_var_exception = dj_settings.TEMPLATES[0]["OPTIONS"]["string_if_invalid"]
+
+    # Make InvalidVarException falsy to keep the behavior consistent for OneToOneField
+    invalid_var_exception.__class__.__bool__ = lambda self: False
+
+    # but adapt Django's template code to behave as if it was truthy in resolve
+    # (except when the default filter is used)
+    patchy.patch(
+        base_template.FilterExpression.resolve,
+        """\
+        @@ -7,7 +7,8 @@
+                         obj = None
+                     else:
+                         string_if_invalid = context.template.engine.string_if_invalid
+        -                if string_if_invalid:
+        +                from django.template.defaultfilters import default as default_filter
+        +                if default_filter not in {func for func, _args in self.filters}:
+                             if "%s" in string_if_invalid:
+                                 return string_if_invalid % self.var
+                             else:
+        """,
+    )
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{FAIL\_INVALID\_TEMPLATE\_VARS}
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{toml}
+[tool.pytest.ini_options]
+FAIL_INVALID_TEMPLATE_VARS = true
+    \end{minted}
+
+    \pause
+
+    Des tests échouent ? Établir une baseline, avec :
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+@pytest.mark.ignore_template_errors
+def test_expected_failure():
+    pass
+    \end{minted}
+\end{frame}
+
+\subsection*{Résolution des variables dans les \texttt{if}}
+
+\begin{frame}[fragile]
+    \frametitle{Quizz}
+    \begin{minted}[bgcolor=LightGray]{django}
+{% if somevar %}
+    <p>More content</p>
+{% endif %}
+    \end{minted}
+    \pause
+    \foreignquote{english}{
+        This behavior is slightly different for the \texttt{if}, \texttt{for}
+        and \texttt{regroup} template tags. If an invalid variable is provided
+        to one of these template tags, the variable will be interpreted as
+        \texttt{None}. Filters are always applied to invalid variables within
+        these template tags.
+    }
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\texttt{fail-on-template-vars}: \texttt{FilterExpression}}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+@register.tag("if")
+def do_if(parser, token):
+    # {% if ... %}
+    bits = token.split_contents()[1:]
+    condition = TemplateIfParser(parser, bits).parse()
+    nodelist = parser.parse(("elif", "else", "endif"))
+    conditions_nodelists = [(condition, nodelist)]
+    token = parser.next_token()
+    # {% elif ... %} (repeatable)
+    ...
+    # {% else %} (optional)
+    ...
+    # {% endif %}
+    ...
+    return IfNode(conditions_nodelists)
+
+class TemplateIfParser(IfParser):
+    def create_var(self, value):
+        return TemplateLiteral(self.template_parser.compile_filter(value), value)
+
+class TemplateLiteral(Literal):
+    def __init__(self, value, text):
+        self.value = value
+        self.text = text  # for better error messages
+
+    def display(self):
+        return self.text
+
+    def eval(self, context):
+        return self.value.resolve(context, ignore_failures=True)
+    \end{minted}
+\end{frame}
+
+
+\begin{frame}[fragile]
+    \frametitle{\texttt{FilterExpression}}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+class FilterExpression:
+    """Parse a variable token and its optional filters [...]"""
+    # {{ user }}, {{ user | default:None }}
+    def resolve(self, context, ignore_failures=False):
+        ...
+        try:
+            obj = self.var.resolve(context)
+        except VariableDoesNotExist:
+            if ignore_failures:
+                # FirstOfNode, ForNode, IfChangedNode, IfNode, RegroupNode.
+                obj = None
+            else:
+                string_if_invalid = context.template.engine.string_if_invalid
+                if string_if_invalid:
+                    if "%s" in string_if_invalid:
+                        return string_if_invalid % self.var
+                    else:
+                        return string_if_invalid
+                else:
+                    obj = string_if_invalid  # 99.9999... % of templates.
+        ...
+    \end{minted}
+\end{frame}
+
+\subsection*{Solution résolution variables dans les \texttt{if}}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/2ccc5db10f07c6049c66a96f5fe57ad6715bdc91/tests/conftest.py\#L320-L350}{Patch 2}: Remplacer \texttt{ignore\_template\_errors}}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+@pytest.fixture(autouse=True, scope="function")
+def unknown_variable_template_error(monkeypatch, request):
+    marker = request.keywords.get("ignore_unknown_variable_template_error", None)
+    BASE_IGNORE_LIST = {"debug", "user"}
+    strict = True
+    if marker is None:
+        ignore_list = BASE_IGNORE_LIST
+    elif marker.args:
+        ignore_list = BASE_IGNORE_LIST | set(marker.args)
+    else:
+        # Marker without list
+        strict = False
+
+    if strict:
+        origin_resolve = base_template.FilterExpression.resolve
+        # FirstOfNode, ForNode, IfChangedNode, IfNode, RegroupNode all force ignore_failures=True.
+        def stricter_resolve(self, context, ignore_failures=False):
+            if (
+                self.is_var
+                and self.var.lookups is not None
+                and self.var.lookups[0] not in context
+                and self.var.lookups[0] not in ignore_list
+            ):
+                ignore_failures = False
+            return origin_resolve(self, context, ignore_failures)
+
+        monkeypatch.setattr(base_template.FilterExpression, "resolve", stricter_resolve)
+    \end{minted}
+\end{frame}
+
+\section{Modernisation avec HTMX}
+
+\subsection*{Avant}
+
+\begin{frame}[fragile]
+    \frametitle{Le vénérable auto-submit}
+
+    Recharger la page à chaque changement.
+
+    \href{http://localhost:8001/}{Démo}
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{javascript}
+function submitFiltersForm() {
+  $("#js-job-applications-filters-form").submit();
+}
+$("#js-job-applications-filters-form :input").change(submitFiltersForm);
+$("duet-date-picker").on("duetChange", submitFiltersForm);
+    \end{minted}
+\end{frame}
+
+\subsection*{Présentation HTMX}
+
+\begin{frame}{HTMX}
+    Librairie JavaScript
+    \begin{itemize}
+        \item Fonctionnement typique:
+            \begin{enumerate}
+                \item Définition des déclencheurs (\texttt{hx-trigger="click"})
+                \item Paramétrage du Fetch (url, méthode HTTP, headers, body)
+                \item Le serveur génère la réponse (généralement un fragment \texttt{HTML})
+                \item Substitution d'une partie du DOM par la réponse
+            \end{enumerate}
+        \item Décrit par des attributs sur les éléments \texttt{HTML} (\texttt{hx-*})
+    \end{itemize}
+
+    \vspace{0.5cm}
+
+    \href{https://htmx.org/examples/click-to-edit/}{\textbf{Démo \texttt{HTMX}}}
+\end{frame}
+
+\subsection*{Intégration dans Django}
+
+\begin{frame}{Recharger un fragment}
+    \href{https://demo.emplois.inclusion.beta.gouv.fr/}{Démo filtres candidatures}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Template de la page}
+
+    \texttt{apply/job\_application\_list.html}:
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+{% extends "layout/base.html" %}
+
+{% block content %}
+    <div class="s-section__row row">
+        <div class="col-12">
+            <h2 id="job-app-title">
+                {{ job_apps|length }} résultat{{ job_apps|pluralize }}
+            </h2>
+        </div>
+        <div class="col-12">
+            <form hx-get="/apply/siae/list/"
+                  hx-trigger="change"
+                  hx-target="#job-app-results">
+                {{ form.eligibility }}
+            </form>
+            {% include "apply/includes/job_app_results.html" %}
+        </div>
+    </div>
+{% endblock content %}
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Fragment pour HTMX}
+
+    \texttt{apply/includes/job\_app\_results.html}:
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+<ul id="job-app-results">
+    {% for job_app in job_apps %}
+        <li>Candidature de {{ job_app.job_seeker.full_name }}</li>
+    {% endfor %}
+</ul>
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{La vue django}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
+def job_applications(request, *args, , **kwargs):
+    # Access controls.
+    context = {
+        "job_apps": JobApplication.objects.filter(
+            to_company=request.user.current_organization,
+        )
+    }
+    template_name = (
+        "apply/includes/job_app_results.html"
+        if request.htmx
+        else "apply/job_application_list.html"
+    )
+    return render(request, template_name, context)
+    \end{minted}
+\end{frame}
+
+\subsection*{Out-of-band swap}
+
+\begin{frame}{Démo out-of-band swap}
+    \href{https://demo.emplois.inclusion.beta.gouv.fr/}{Démo actions préalables à l'embauche GEIQ}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Template de base}
+
+    \texttt{apply/job\_application\_list.html}:
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+{% extends "layout/base.html" %}
+
+{% block content %}
+    <div class="s-section__row row">
+        <div class="col-12">
+            {% include "apply/includes/job_app_title.html" %}
+        </div>
+        <div class="col-12">
+            <form hx-get="/apply/siae/list/"
+                  hx-trigger="change"
+                  hx-target="#job-app-results">
+                {{ form.eligibility }}
+            </form>
+            {% include "apply/includes/job_app_results.html" %}
+        </div>
+    </div>
+{% endblock content %}
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Fragments pour HTMX}
+    \texttt{apply/includes/job\_app\_title.html}
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+<h2 id="job-app-title"{% if request.htmx %} hx-swap-oob="true"{% endif %}>
+    {{ job_apps|length }} résultat{{ job_apps|pluralize }}
+</h2>
+    \end{minted}
+    \texttt{apply/includes/job\_app\_results.html}:
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+<ul id="job-app-results">
+    {% for job_app in job_apps %}
+        <li>Candidature de {{ job_app.job_seeker.full_name }}</li>
+    {% endfor %}
+</ul>
+{% if request.htmx %}
+    {% include "apply/includes/job_app_title.html" %}
+{% endif %}
+    \end{minted}
+\end{frame}
+
+\begin{frame}{Danger des out-of-band}
+    \begin{itemize}
+        \item Il est facile d'oublier de mettre à jour un fragment de la page
+    \end{itemize}
+\end{frame}
+
+\section{Utilitaire de test pour HTMX}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/9d800e6b3c8a814f17303157966830a0411db8e5/tests/utils/htmx/test.py\#L64}{\texttt{update\_page\_with\_htmx}}}
+    \vspace{-0.3cm}
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
+def test_htmx_with_oob(self):
+    self.client.force_login(self.user)
+    response = self.client.get(self.URL, {"status": "NEW"})
+    simulated_page = parse_response_to_soup(response)
+
+    [new_status] = simulated_page.find_all(
+        "input", attrs={"name": "status", "value": "NEW"},
+    )
+    del new_status["checked"]
+    [ready_status] = simulated_page.find_all(
+        "input", attrs={"name": "status", "value": "READY"},
+    )
+    ready_status["checked"] = ""
+    response = self.client.get(
+        self.URL, {"status": "READY"}, headers={"HX-Request": "true"}
+    )
+    update_page_with_htmx(
+        simulated_page, f"form[hx-get='{self.URL}']", response
+    )
+    response = self.client.get(self.URL, {"status": "READY"})
+    fresh_page = parse_response_to_soup(response)
+    assertSoupEqual(simulated_page, fresh_page)
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/9d800e6b3c8a814f17303157966830a0411db8e5/tests/utils/htmx/test.py\#L64}{\texttt{update\_page\_with\_htmx}} \hfill 1/2}
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+def update_page_with_htmx(page, select_htmx_element, htmx_response):
+    [htmx_element] = page.select(select_htmx_element)
+    request_method = htmx_response.request["REQUEST_METHOD"]
+    if request_method not in ("GET", "POST", "PUT", "DELETE", "PATCH"):
+        raise ValueError(f"Unsupported method {request_method}")
+    attribute = f"hx-{htmx_response.request['REQUEST_METHOD'].lower()}"
+    if attribute not in htmx_element.attrs:
+        raise ValueError(f"No {attribute} attribute on provided HTMX element")
+    url = htmx_element[attribute]
+    if url:
+        # If url is "", it means that HTMX will have targeted the current URL
+        # https://github.com/bigskysoftware/htmx/blob/v1.8.6/src/htmx.js#L2799-L2802
+        # Let's not assert anything in that case, since we currently don't have that info in our test
+        parsed_url = urlparse(url)
+        assert htmx_response.request["PATH_INFO"] == parsed_url.path
+    # We only support HTMX responses that do not try to swap the whole HTML body
+    parsed_response = parse_response_to_soup(htmx_response, no_html_body=True)
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/9d800e6b3c8a814f17303157966830a0411db8e5/tests/utils/htmx/test.py\#L64}{\texttt{update\_page\_with\_htmx}} \hfill 2/2}
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+    out_of_band_swaps = [element.extract() for element in parsed_response.select("[hx-swap-oob]")]
+    for out_of_band_swap in out_of_band_swaps:
+        oob_swap = out_of_band_swap["hx-swap-oob"]
+        target_selector = None
+        if oob_swap == "true":
+            mode = "outerHTML"
+        elif "," in oob_swap:
+            mode, target_selector = oob_swap.split(",", maxsplit=1)
+        else:
+            mode = oob_swap
+        del out_of_band_swap["hx-swap-oob"]
+        if not target_selector:
+            assert out_of_band_swap["id"], out_of_band_swap
+            target_selector = f"#{out_of_band_swap['id']}"
+        targets = page.select(target_selector)
+        for target in targets:
+            _handle_swap(page, target=target, new_elements=[out_of_band_swap], mode=mode)
+    _handle_swap(
+        page,
+        target=_get_hx_attribute(htmx_element, "hx-target"),
+        new_elements=parsed_response.contents,
+        mode=_get_hx_attribute(htmx_element, "hx-swap", default="innerHTML"),
+    )
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/9d800e6b3c8a814f17303157966830a0411db8e5/tests/utils/htmx/test.py\#L52}{\texttt{\_get\_hx\_attribute}}}
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+def _get_hx_attribute(element, attribute, default=None):
+    while (value := element.attrs.get(attribute)) is None:
+        element = element.parent
+        if element is None:
+            if default is not None:
+                return default
+            raise ValueError(f"Attribute {attribute} not found on element or its parents")
+    if attribute == "hx-target" and value == "this":
+        return element
+    return value
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/9d800e6b3c8a814f17303157966830a0411db8e5/tests/utils/htmx/test.py\#L37}{\texttt{\_handle\_swap}}}
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+def _handle_swap(page, *, target, new_elements, mode):
+    if mode == "outerHTML":
+        target_element = page.select_one(target) if isinstance(target, str) else target
+        if not new_elements:
+            # Empty response: remove the target completely
+            target_element.decompose()
+            return
+        [first_element, *rest] = new_elements
+        for rest_elt in reversed(rest):
+            target_element.insert_after(rest_elt)
+        target_element.replace_with(first_element)
+        return
+    raise NotImplementedError("Other kinds of swap not implemented, please do")
+    \end{minted}
+\end{frame}
+
+\begin{frame}[focus]
+    Merci de votre attention
+    \\
+    \vspace{20pt}
+    \rule{\textwidth}{1pt}
+    \\
+    \vspace{30pt}
+    Avez-vous des questions ?
+\end{frame}
+
+\end{document}
