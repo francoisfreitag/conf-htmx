@@ -324,7 +324,7 @@ class Variable:
         """Perform resolution of a real variable (i.e. not a literal) against the given context."""
         current = context
         try:  # catch-all for silent variable failures
-            for bit in self.lookups:
+            for bit in self.lookups:  # self.lookups = ["user", "supervisor"]
                 try:  # dictionary lookup
                     current = current[bit]
                 except (TypeError, AttributeError, KeyError, ValueError, IndexError):
@@ -517,7 +517,7 @@ class FilterExpression:
 \subsection*{Solution résolution variables dans les \texttt{if}}
 
 \begin{frame}[fragile]
-    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/2ccc5db10f07c6049c66a96f5fe57ad6715bdc91/tests/conftest.py\#L320-L350}{Patch 2}: Remplacer \texttt{ignore\_template\_errors}}
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/2ccc5db10f07c6049c66a96f5fe57ad6715bdc91/tests/conftest.py\#L320-L350}{Patch 2}: Détecter plus d'erreur}
 
     \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
 @pytest.fixture(autouse=True, scope="function")
@@ -663,7 +663,35 @@ def job_applications(request, *args, , **kwargs):
 \end{frame}
 
 \begin{frame}[fragile]
-    \frametitle{Template de base}
+    \frametitle{Template de la page (sans OOB)}
+
+    \texttt{apply/job\_application\_list.html}:
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{django}
+{% extends "layout/base.html" %}
+
+{% block content %}
+    <div class="s-section__row row">
+        <div class="col-12">
+            <h2 id="job-app-title">
+                {{ job_apps|length }} résultat{{ job_apps|pluralize }}
+            </h2>
+        </div>
+        <div class="col-12">
+            <form hx-get="/apply/siae/list/"
+                  hx-trigger="change"
+                  hx-target="#job-app-results">
+                {{ form.eligibility }}
+            </form>
+            {% include "apply/includes/job_app_results.html" %}
+        </div>
+    </div>
+{% endblock content %}
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{Template de la page (pour OOB)}
 
     \texttt{apply/job\_application\_list.html}:
 
@@ -718,7 +746,41 @@ def job_applications(request, *args, , **kwargs):
 \section{Utilitaire de test pour HTMX}
 
 \begin{frame}[fragile]
-    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/9d800e6b3c8a814f17303157966830a0411db8e5/tests/utils/htmx/test.py\#L64}{\texttt{update\_page\_with\_htmx}}}
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/c05aac7f05d44c0a702076f9694bdf97ab7bfe8c/tests/utils/htmx/tests.py\#L27}{\texttt{update\_page\_with\_htmx}} \hfill{} 1/2}
+
+    \begin{minted}[bgcolor=LightGray,fontsize=\tiny]{python}
+def test_update_page_with_htmx():
+    simulated_page = parse_response_to_soup(FakeResponse(b"""
+          <html><body><div id="main">
+                <div id="div-to-swap">
+                  <form hx-post="/somewhere?with_query_string=" hx-swap="outerHTML"
+                        hx-target="#div-to-swap">
+                    <input name="some_input"/>
+                  </form>
+                </div>
+                <div id="other-div-for-oob-test"></div>
+          </div></body></html> """))
+    htmx_response = FakeResponse(b"""
+        <div id="swapped-div">No more form !</div>
+        <a href="#">Here is a link instead</a>
+        <div id="other-div-for-oob-test" hx-swap-oob="true">OOB Swap successful</div>""",
+        request={"PATH_INFO": "/somewhere", "REQUEST_METHOD": "POST", "QUERY_STRING": "with_query_string="},
+    )
+    update_page_with_htmx(simulated_page, "#div-to-swap > form", htmx_response)
+    assertSoupEqual(
+        simulated_page,
+        BeautifulSoup(b"""
+          <html><body><div id="main">
+                <div id="swapped-div">No more form !</div>
+                <a href="#">Here is a link instead</a>
+                <div id="other-div-for-oob-test">OOB Swap successful</div>
+          </div></body></html>""", "html5lib")
+    )
+    \end{minted}
+\end{frame}
+
+\begin{frame}[fragile]
+    \frametitle{\href{https://github.com/gip-inclusion/les-emplois/blob/9d800e6b3c8a814f17303157966830a0411db8e5/tests/utils/htmx/test.py\#L64}{\texttt{update\_page\_with\_htmx}} \hfill{} 2/2}
     \vspace{-0.3cm}
     \begin{minted}[bgcolor=LightGray,fontsize=\scriptsize]{python}
 def test_htmx_with_oob(self):
